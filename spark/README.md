@@ -1,178 +1,116 @@
-# 🦞 bigdata_nanp - NIFI — BigData batch stack
-bigdata tps and stuffs
+# 🦞 bigdata_nanp - SPARK — BigData batch processing stack
+
+Batch processing stack with **Apache Spark**, **Jupyter PySpark**, and **MinIO** (S3-compatible storage).
 
 <p align="center">
-    <picture>
-        <source media="(prefers-color-scheme: light dark)" srcset="images/archi-nifi.drawio.png">
-        <img src="images/archi-nifi.drawio.png" alt="BigData stream stack (docker)" width="300" height="300">
-    </picture>
-</p>
-
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
+  <a href="../LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
 </p>
 
 ---
 
-**Stack** is a simple *BigData batch stack* running over *Docker*.
+**Stack** is a *BigData batch processing stack* running over *Docker*.
 
-It will help you to deploy and test a simple **Batch** pipeline using **Docker** and **nifi**.
+It provides a standalone Spark cluster with Jupyter notebooks for interactive PySpark development and batch jobs reading/writing data from MinIO.
 
-**Components:**
-- **Mysql:** contains database `TYROK`
-- **NIFI:** use to ingest tables `client`, `product`, `sales`
-- **MINIO:** store result in `parquet` format. It use buckets `[client/product/sales]-bucket`
-- **PYTHON:** contains two folders:
+## **Components**
 
-1- `python_mysql`: scripts use to add and list data in mysql
+| Container | Image | Role |
+|---|---|---|
+| `spark-master` | `apache/spark-py:v3.4.0` | Spark master node |
+| `spark-worker-1` | `apache/spark-py:v3.4.0` | Spark worker node |
+| `jupyter-pyspark` | `jupyter/pyspark-notebook:spark-3.4.0` | Jupyter notebook (PySpark kernel) |
+| `minio` | `quay.io/minio/minio:latest` | S3-compatible object storage |
 
-2- `python_minio`: scripts use to add, list, read parquet and bucket in minio
+## **Ports**
 
-## PORTS & configs
-
-- **Mysql**: Default -> `3306`, Exposed -> `8889`
-- **Nifi**: Default (http,https) -> `8080,8443`, Exposed(http,https) -> `8887,8443`
-- **Minio API S3**: Default -> `9000`, Exposed -> `9030`
-- **Minio UI**: Default -> `9001`, Exposed -> `9031`
+| Service | Default port | Exposed port |
+|---|---|---|
+| Spark Master Web UI | 8080 | **8980** |
+| Spark Master RPC | 7077 | **7977** |
+| Spark Worker-1 Web UI | 8081 | **8981** |
+| Jupyter | 8888 | **8988** |
+| MinIO S3 API | 9000 | **9030** |
+| MinIO Web UI | 9001 | **9031** |
 
 ---
 
-### Volumes
-before you start the docker stack, make sure to change volumes locations
+## **Volumes**
+
+Before starting the stack, update the volume device paths in `compose.yml`:
 
 ```yml
-
 volumes:
-  mysql_data:
-    driver: local # Define the driver and options under the volume name
-    driver_opts:
-      type: none
-      device: /Change/Path/mysql
-      o: bind
   minio_data:
-    driver: local # Define the driver and options under the volume name
+    driver: local
     driver_opts:
       type: none
       device: /Change/Path/minio
       o: bind
   share_data:
-    driver: local # Define the driver and options under the volume name
+    driver: local
     driver_opts:
       type: none
       device: /Change/Path/share_folder
       o: bind
-
 ```
 
 ---
 
-### Run project & some cleaning ops
+## **Run the stack**
 
-```sh
-# Be sure to be in the folder with compose.yml file
-# start all
+```bash
+# Navigate to this folder
+cd spark
+
+# Start all services
 docker compose up -d
 
-# stop all and clean some volume
+# Stop all and clean volumes
 docker compose down -v --remove-orphans
 ```
 
 ---
 
-## Project
+## **Access UIs**
 
-### - mysql
-make sur you create all databases and tables
+| UI | URL |
+|---|---|
+| Spark Master | http://localhost:8980 |
+| Spark Worker | http://localhost:8981 |
+| Jupyter Notebook | http://localhost:8988 |
+| MinIO Web Console | http://localhost:9031 (admin / password123) |
 
-### - minio
-url: http://localhost:9031/
-create all buckets
+---
 
-### - python
-#### mysql
+## **PySpark with MinIO (S3)**
 
-```bash
-# first, make sure your in python container
-docker exec -it python_base bash
+The Jupyter container includes the necessary Spark packages (`iceberg-runtime`, `hadoop-aws`, `aws-java-sdk`) to read and write data on MinIO using the S3A protocol.
 
-# move to '/app/python_mysql'
-cd /app/python_mysql
+Example Spark session in a notebook:
 
-# commands helps
-python main.py --help
+```python
+from pyspark.sql import SparkSession
 
-# test connexion
-python main.py test
+spark = SparkSession.builder \
+    .appName("MinIO Example") \
+    .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000") \
+    .config("spark.hadoop.fs.s3a.access.key", "admin") \
+    .config("spark.hadoop.fs.s3a.secret.key", "password123") \
+    .config("spark.hadoop.fs.s3a.path.style.access", "true") \
+    .getOrCreate()
 
-# list datas
-python main.py list client
-python main.py list product
-python main.py list sales
-
-# add datas
-python main.py client --code "C003" --name "Entreprise XYZ"
-python main.py product --code "P-TAB" --name "Tablette" --pu 299.99
-python main.py sale --client_id 1 --product_id 2 --qte 3 --total 899.97
+# Read parquet from MinIO
+df = spark.read.parquet("s3a://my-bucket/data.parquet")
+df.show()
 ```
 
-#### minio
+---
+
+## **MinIO operations**
 
 ```bash
-# before, make sure to modify '.env' file
+# Access MinIO console at http://localhost:9031 (admin / password123)
 
-# first, make sure your in python container
-docker exec -it python_base bash
-
-# move to '/app/python_minio'
-cd /app/python_minio
-
-# commands helps
-python main.py --help
-
-# list bucket content
-python main.py list --bucket my-bucket
-
-# count files in bucket
-python main.py count --bucket my-bucket
-
-# read parquet or csv file
-python main.py read --bucket my-bucket --file data.csv --style fancy_grid
-python main.py read --bucket my-bucket --file data.parquet --style fancy_grid
-
-# add file in bucket
-python main.py put --bucket my-bucket --local /path/to/local/file
-
+# Delete a bucket
+docker exec minio mc rb --force myalias/[bucket-name]
 ```
-
-#### nifi
-0- url: https://localhost:8443/nifi/login
-
-1- just import template `mysql-nifi-minio.xml`
-
-2- change username and password in `QueryDatabaseTablerecord` and `PutS3Object`
-
-3- create `jars` folder inside your `share_data` volume and copy all jars files inside
-
-4- some config settings: 
-
-Pool connection -> **Database Connection URL**: `jdbc:mysql://mysql:3306/TYROK`
-
-Pool connection -> **Database Driver ClassName**: `com.mysql.jdbc.Driver`
-
-Pool connection -> **Database Driver Location(s)**: `/partage/jars/mysql-connector-java-8.0.30.jar`
-
-update attribute -> **filename**: `client_${now():format('yyyyMMdd_HHmmss')}.parquet`
-
-PutS3Oject -> **EndPoint Override URL**: `http://minio:9000`
-
-
-<p align="center">
-    <picture>
-        <source media="(prefers-color-scheme: light dark)" srcset="images/1-mysql-nifi-minio.png">
-        <img src="images/1-mysql-nifi-minio.png" alt="BigData stream stack (docker)" width="600" height="700">
-    </picture>
-</p>
-
-
-
-

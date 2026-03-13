@@ -1,178 +1,118 @@
-# 🦞 bigdata_nanp - NIFI — BigData batch stack
-bigdata tps and stuffs
+# 🦞 bigdata_nanp - SPARK + NESSIE — BigData lakehouse stack
+
+Lakehouse stack with **Apache Spark**, **Apache Iceberg** table format, **Project Nessie** catalog, **Jupyter PySpark**, and **MinIO**.
 
 <p align="center">
-    <picture>
-        <source media="(prefers-color-scheme: light dark)" srcset="images/archi-nifi.drawio.png">
-        <img src="images/archi-nifi.drawio.png" alt="BigData stream stack (docker)" width="300" height="300">
-    </picture>
-</p>
-
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
+  <a href="../LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
 </p>
 
 ---
 
-**Stack** is a simple *BigData batch stack* running over *Docker*.
+**Stack** is a *BigData lakehouse stack* running over *Docker*.
 
-It will help you to deploy and test a simple **Batch** pipeline using **Docker** and **nifi**.
+It combines Spark with the Iceberg open table format managed by a Nessie version-control catalog, enabling ACID transactions, time travel, and schema evolution on data stored in MinIO.
 
-**Components:**
-- **Mysql:** contains database `TYROK`
-- **NIFI:** use to ingest tables `client`, `product`, `sales`
-- **MINIO:** store result in `parquet` format. It use buckets `[client/product/sales]-bucket`
-- **PYTHON:** contains two folders:
+## **Components**
 
-1- `python_mysql`: scripts use to add and list data in mysql
+| Container | Image | Role |
+|---|---|---|
+| `spark-master` | `apache/spark-py:v3.4.0` | Spark master node |
+| `spark-worker-1` | `apache/spark-py:v3.4.0` | Spark worker node |
+| `jupyter-pyspark` | `jupyter/pyspark-notebook:spark-3.4.0` | Jupyter notebook (PySpark + Iceberg + Nessie) |
+| `minio` | `quay.io/minio/minio:latest` | S3-compatible data lake storage |
+| `catalog` | `ghcr.io/projectnessie/nessie:0.99.0` | Nessie Iceberg REST catalog |
+| `mariadb` | `mariadb:10.11` | Nessie catalog metadata storage |
 
-2- `python_minio`: scripts use to add, list, read parquet and bucket in minio
+## **Ports**
 
-## PORTS & configs
-
-- **Mysql**: Default -> `3306`, Exposed -> `8889`
-- **Nifi**: Default (http,https) -> `8080,8443`, Exposed(http,https) -> `8887,8443`
-- **Minio API S3**: Default -> `9000`, Exposed -> `9030`
-- **Minio UI**: Default -> `9001`, Exposed -> `9031`
+| Service | Default port | Exposed port |
+|---|---|---|
+| Spark Master Web UI | 8080 | **8980** |
+| Spark Master RPC | 7077 | **7977** |
+| Spark Worker Web UI | 8081 | **8981** |
+| Jupyter | 8888 | **8988** |
+| MinIO S3 API | 9000 | **9030** |
+| MinIO Web UI | 9001 | **9031** |
+| Nessie REST catalog | 19120 | **19720** |
+| MariaDB | 3306 | **3416** |
 
 ---
 
-### Volumes
-before you start the docker stack, make sure to change volumes locations
+## **Volumes**
+
+Before starting the stack, update volume device paths in `compose.yml`:
 
 ```yml
-
 volumes:
-  mysql_data:
-    driver: local # Define the driver and options under the volume name
-    driver_opts:
-      type: none
-      device: /Change/Path/mysql
-      o: bind
   minio_data:
-    driver: local # Define the driver and options under the volume name
+    driver: local
     driver_opts:
       type: none
       device: /Change/Path/minio
       o: bind
   share_data:
-    driver: local # Define the driver and options under the volume name
+    driver: local
     driver_opts:
       type: none
       device: /Change/Path/share_folder
       o: bind
-
 ```
 
 ---
 
-### Run project & some cleaning ops
+## **Run the stack**
 
-```sh
-# Be sure to be in the folder with compose.yml file
-# start all
+```bash
+# Navigate to this folder
+cd spark-nessie
+
+# Start all services
 docker compose up -d
 
-# stop all and clean some volume
+# Stop all and clean volumes
 docker compose down -v --remove-orphans
 ```
 
 ---
 
-## Project
+## **Access UIs**
 
-### - mysql
-make sur you create all databases and tables
+| UI | URL |
+|---|---|
+| Spark Master | http://localhost:8980 |
+| Spark Worker | http://localhost:8981 |
+| Jupyter Notebook | http://localhost:8988 |
+| MinIO Web Console | http://localhost:9031 (admin / password123) |
+| Nessie REST API | http://localhost:19720/api/v2/config |
 
-### - minio
-url: http://localhost:9031/
-create all buckets
+---
 
-### - python
-#### mysql
+## **PySpark with Iceberg + Nessie**
 
-```bash
-# first, make sure your in python container
-docker exec -it python_base bash
+The Jupyter container includes Spark packages for `iceberg-runtime`, `nessie-spark-extensions`, and `hadoop-aws`.
 
-# move to '/app/python_mysql'
-cd /app/python_mysql
+Example Spark session in a notebook:
 
-# commands helps
-python main.py --help
+```python
+from pyspark.sql import SparkSession
 
-# test connexion
-python main.py test
+spark = SparkSession.builder \
+    .appName("Iceberg + Nessie") \
+    .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,org.projectnessie.spark.extensions.NessieSparkSessionExtensions") \
+    .config("spark.sql.catalog.nessie", "org.apache.iceberg.spark.SparkCatalog") \
+    .config("spark.sql.catalog.nessie.catalog-impl", "org.apache.iceberg.nessie.NessieCatalog") \
+    .config("spark.sql.catalog.nessie.uri", "http://catalog:19120/api/v1") \
+    .config("spark.sql.catalog.nessie.ref", "main") \
+    .config("spark.sql.catalog.nessie.warehouse", "s3a://warehouse") \
+    .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000") \
+    .config("spark.hadoop.fs.s3a.access.key", "admin") \
+    .config("spark.hadoop.fs.s3a.secret.key", "password123") \
+    .config("spark.hadoop.fs.s3a.path.style.access", "true") \
+    .getOrCreate()
 
-# list datas
-python main.py list client
-python main.py list product
-python main.py list sales
+# Create an Iceberg table managed by Nessie
+spark.sql("CREATE TABLE nessie.db.clients (id INT, name STRING) USING iceberg")
 
-# add datas
-python main.py client --code "C003" --name "Entreprise XYZ"
-python main.py product --code "P-TAB" --name "Tablette" --pu 299.99
-python main.py sale --client_id 1 --product_id 2 --qte 3 --total 899.97
+# Time travel
+spark.sql("SELECT * FROM nessie.db.clients VERSION AS OF 'main'")
 ```
-
-#### minio
-
-```bash
-# before, make sure to modify '.env' file
-
-# first, make sure your in python container
-docker exec -it python_base bash
-
-# move to '/app/python_minio'
-cd /app/python_minio
-
-# commands helps
-python main.py --help
-
-# list bucket content
-python main.py list --bucket my-bucket
-
-# count files in bucket
-python main.py count --bucket my-bucket
-
-# read parquet or csv file
-python main.py read --bucket my-bucket --file data.csv --style fancy_grid
-python main.py read --bucket my-bucket --file data.parquet --style fancy_grid
-
-# add file in bucket
-python main.py put --bucket my-bucket --local /path/to/local/file
-
-```
-
-#### nifi
-0- url: https://localhost:8443/nifi/login
-
-1- just import template `mysql-nifi-minio.xml`
-
-2- change username and password in `QueryDatabaseTablerecord` and `PutS3Object`
-
-3- create `jars` folder inside your `share_data` volume and copy all jars files inside
-
-4- some config settings: 
-
-Pool connection -> **Database Connection URL**: `jdbc:mysql://mysql:3306/TYROK`
-
-Pool connection -> **Database Driver ClassName**: `com.mysql.jdbc.Driver`
-
-Pool connection -> **Database Driver Location(s)**: `/partage/jars/mysql-connector-java-8.0.30.jar`
-
-update attribute -> **filename**: `client_${now():format('yyyyMMdd_HHmmss')}.parquet`
-
-PutS3Oject -> **EndPoint Override URL**: `http://minio:9000`
-
-
-<p align="center">
-    <picture>
-        <source media="(prefers-color-scheme: light dark)" srcset="images/1-mysql-nifi-minio.png">
-        <img src="images/1-mysql-nifi-minio.png" alt="BigData stream stack (docker)" width="600" height="700">
-    </picture>
-</p>
-
-
-
-

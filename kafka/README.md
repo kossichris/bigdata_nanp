@@ -1,178 +1,166 @@
-# 🦞 bigdata_nanp - NIFI — BigData batch stack
-bigdata tps and stuffs
+# 🦞 bigdata_nanp - KAFKA — BigData CDC streaming stack
+
+CDC (Change Data Capture) streaming pipeline to ingest data from `MySQL` and store it in `Parquet` format in `MinIO` via Apache Kafka (KRaft mode) + Kafka Connect + Schema Registry.
 
 <p align="center">
-    <picture>
-        <source media="(prefers-color-scheme: light dark)" srcset="images/archi-nifi.drawio.png">
-        <img src="images/archi-nifi.drawio.png" alt="BigData stream stack (docker)" width="300" height="300">
-    </picture>
-</p>
-
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
+  <a href="../LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
 </p>
 
 ---
 
-**Stack** is a simple *BigData batch stack* running over *Docker*.
+**Stack** is a *BigData CDC streaming stack* running over *Docker*.
 
-It will help you to deploy and test a simple **Batch** pipeline using **Docker** and **nifi**.
+It deploys a streaming pipeline using **Apache Kafka** (KRaft mode, no Zookeeper), **Debezium** (MySQL source connector), and **Confluent S3 Sink** (MinIO) with **Avro/Schema Registry**.
 
-**Components:**
-- **Mysql:** contains database `TYROK`
-- **NIFI:** use to ingest tables `client`, `product`, `sales`
-- **MINIO:** store result in `parquet` format. It use buckets `[client/product/sales]-bucket`
-- **PYTHON:** contains two folders:
+## **Components**
 
-1- `python_mysql`: scripts use to add and list data in mysql
+| Container | Image | Role |
+|---|---|---|
+| `kafka` | `apache/kafka:4.2.0-rc2` | Kafka broker (KRaft mode) |
+| `mysql` | `mysql:8.0` | Source database TYROK |
+| `schema-registry` | `confluentinc/cp-schema-registry:7.5.0` | Avro schema management |
+| `connect` | `confluentinc/cp-kafka-connect-base:7.7.7` | Kafka Connect (Debezium + S3 sink) |
+| `minio` | `quay.io/minio/minio:latest` | S3-compatible object storage |
+| `setup-automation` | custom | Initialize MySQL + register connectors *(profile: `extra`)* |
+| `python_base` | custom | Python CLI for MySQL & MinIO *(profile: `client`, `terminal`)* |
+| `streamlit_app` | custom | Streamlit dashboard *(profile: `client`, `ui`)* |
 
-2- `python_minio`: scripts use to add, list, read parquet and bucket in minio
+## **Ports**
 
-## PORTS & configs
-
-- **Mysql**: Default -> `3306`, Exposed -> `8889`
-- **Nifi**: Default (http,https) -> `8080,8443`, Exposed(http,https) -> `8887,8443`
-- **Minio API S3**: Default -> `9000`, Exposed -> `9030`
-- **Minio UI**: Default -> `9001`, Exposed -> `9031`
+| Service | Default port | Exposed port |
+|---|---|---|
+| MySQL | 3306 | **8889** |
+| Kafka broker | 9092 | **9292** |
+| Schema Registry | 8081 | **8091** |
+| Kafka Connect REST API | 8083 | **8093** |
+| MinIO S3 API | 9000 | **9030** |
+| MinIO Web UI | 9001 | **9031** |
+| Streamlit dashboard | 8501 | **8581** |
 
 ---
 
-### Volumes
-before you start the docker stack, make sure to change volumes locations
+## **Volumes**
+
+Before starting the stack, update the volume device paths in `compose.yml` to match your local machine:
 
 ```yml
-
 volumes:
   mysql_data:
-    driver: local # Define the driver and options under the volume name
+    driver: local
     driver_opts:
       type: none
       device: /Change/Path/mysql
       o: bind
   minio_data:
-    driver: local # Define the driver and options under the volume name
+    driver: local
     driver_opts:
       type: none
       device: /Change/Path/minio
       o: bind
   share_data:
-    driver: local # Define the driver and options under the volume name
+    driver: local
     driver_opts:
       type: none
       device: /Change/Path/share_folder
       o: bind
-
 ```
 
 ---
 
-### Run project & some cleaning ops
+## **Run the stack**
 
-```sh
-# Be sure to be in the folder with compose.yml file
-# start all
+```bash
+# Navigate to this folder
+cd kafka
+
+# Start core services (kafka, mysql, schema-registry, connect, minio)
 docker compose up -d
 
-# stop all and clean some volume
+# Start core services + setup-automation (registers connectors automatically)
+docker compose --profile extra up -d
+
+# Start core services + Python CLI client
+docker compose --profile client up -d
+
+# Start everything including Streamlit UI
+docker compose --profile extra --profile client --profile ui up -d
+
+# Stop all and clean volumes
 docker compose down -v --remove-orphans
 ```
 
 ---
 
-## Project
+## **Setup automation**
 
-### - mysql
-make sur you create all databases and tables
+The `setup-automation` container (profile `extra`) runs automatically:
+1. Grants MySQL privileges and creates the `TYROK` database + tables
+2. Registers the **Debezium MySQL source connector** (`tyrok-source-connector.json`)
+3. Registers the **S3 sink connector** (`tyrok-sink-connector.json`) pointing to MinIO
 
-### - minio
-url: http://localhost:9031/
-create all buckets
-
-### - python
-#### mysql
+If you don't use the profile, register connectors manually via the Connect REST API:
 
 ```bash
-# first, make sure your in python container
-docker exec -it python_base bash
+# Register source connector
+curl -X POST http://localhost:8093/connectors \
+  -H "Content-Type: application/json" \
+  -d @tyrok-source-connector.json
 
-# move to '/app/python_mysql'
-cd /app/python_mysql
+# Register sink connector
+curl -X POST http://localhost:8093/connectors \
+  -H "Content-Type: application/json" \
+  -d @tyrok-sink-connector.json
 
-# commands helps
-python main.py --help
-
-# test connexion
-python main.py test
-
-# list datas
-python main.py list client
-python main.py list product
-python main.py list sales
-
-# add datas
-python main.py client --code "C003" --name "Entreprise XYZ"
-python main.py product --code "P-TAB" --name "Tablette" --pu 299.99
-python main.py sale --client_id 1 --product_id 2 --qte 3 --total 899.97
+# List connectors
+curl http://localhost:8093/connectors
 ```
 
-#### minio
+---
+
+## **Access UIs**
+
+| UI | URL |
+|---|---|
+| MinIO Web Console | http://localhost:9031 (admin / password123) |
+| Schema Registry | http://localhost:8091/subjects |
+| Kafka Connect | http://localhost:8093/connectors |
+
+---
+
+## **Python clients**
+
+### MySQL client
 
 ```bash
-# before, make sure to modify '.env' file
-
-# first, make sure your in python container
-docker exec -it python_base bash
-
-# move to '/app/python_minio'
-cd /app/python_minio
-
-# commands helps
-python main.py --help
-
-# list bucket content
-python main.py list --bucket my-bucket
-
-# count files in bucket
-python main.py count --bucket my-bucket
-
-# read parquet or csv file
-python main.py read --bucket my-bucket --file data.csv --style fancy_grid
-python main.py read --bucket my-bucket --file data.parquet --style fancy_grid
-
-# add file in bucket
-python main.py put --bucket my-bucket --local /path/to/local/file
-
+docker exec python_base python /app/python_mysql/main.py --help
+docker exec python_base python /app/python_mysql/main.py test
+docker exec python_base python /app/python_mysql/main.py list client
+docker exec python_base python /app/python_mysql/main.py list product
+docker exec python_base python /app/python_mysql/main.py list sales
 ```
 
-#### nifi
-0- url: https://localhost:8443/nifi/login
+### MinIO client
 
-1- just import template `mysql-nifi-minio.xml`
+```bash
+docker exec python_base python /app/python_minio/main.py --help
+docker exec python_base python /app/python_minio/main.py list --bucket client-bucket
+docker exec python_base python /app/python_minio/main.py read-all --bucket client-bucket --style fancy_grid
+```
 
-2- change username and password in `QueryDatabaseTablerecord` and `PutS3Object`
+---
 
-3- create `jars` folder inside your `share_data` volume and copy all jars files inside
+## **Kafka operations**
 
-4- some config settings: 
+```bash
+# Connect to kafka container
+docker exec -it kafka bash
 
-Pool connection -> **Database Connection URL**: `jdbc:mysql://mysql:3306/TYROK`
+# List topics
+/opt/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092
 
-Pool connection -> **Database Driver ClassName**: `com.mysql.jdbc.Driver`
+# Describe a topic
+/opt/kafka/bin/kafka-topics.sh --describe --topic TYROK.client --bootstrap-server localhost:9092
 
-Pool connection -> **Database Driver Location(s)**: `/partage/jars/mysql-connector-java-8.0.30.jar`
-
-update attribute -> **filename**: `client_${now():format('yyyyMMdd_HHmmss')}.parquet`
-
-PutS3Oject -> **EndPoint Override URL**: `http://minio:9000`
-
-
-<p align="center">
-    <picture>
-        <source media="(prefers-color-scheme: light dark)" srcset="images/1-mysql-nifi-minio.png">
-        <img src="images/1-mysql-nifi-minio.png" alt="BigData stream stack (docker)" width="600" height="700">
-    </picture>
-</p>
-
-
-
-
+# Consume messages from a topic
+/opt/kafka/bin/kafka-console-consumer.sh --topic TYROK.client --from-beginning --bootstrap-server localhost:9092
+```

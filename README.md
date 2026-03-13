@@ -2,9 +2,14 @@
 bigdata tps and stuffs
 
 **Folders:**
-- **[mysql](https://github.com/ngoupatrick/bigdata_nanp/tree/main/mysql)**: Contains sql scripts to setup mysql database
-- **[nifi](https://github.com/ngoupatrick/bigdata_nanp/tree/main/nifi)**: docker labs to ingest datas from mysql database to minio throw nifi
-- **[redpanda_stream](https://github.com/ngoupatrick/bigdata_nanp/tree/main/redpanda_stream)**: docker labs to ingest datas from mysql database to minio throw kafka (redpanda) in streaming
+- **[mysql](mysql)**: Contains sql scripts to setup mysql database
+- **[nifi](nifi)**: Docker lab — batch ingestion from MySQL to MinIO via Apache NiFi
+- **[kafka](kafka)**: Docker lab — CDC streaming from MySQL to MinIO via Apache Kafka (KRaft) + Kafka Connect + Schema Registry
+- **[redpanda_stream](redpanda_stream)**: Docker lab — CDC streaming from MySQL to MinIO via Redpanda (Kafka-compatible) + Spark cluster
+- **[spark](spark)**: Docker lab — batch processing with Apache Spark + Jupyter + MinIO
+- **[spark-nessie](spark-nessie)**: Docker lab — Spark + Apache Iceberg table format managed by Nessie catalog + MinIO
+- **[spark-streaming](spark-streaming)**: Docker lab — Spark Structured Streaming over Redpanda (Kafka) + Jupyter
+- **[iceberg-nessie](iceberg-nessie)**: Docker lab — Apache Iceberg + Nessie catalog + Trino SQL engine + MinIO
 
 ## Versions
 
@@ -62,12 +67,58 @@ newgrp docker # Or restart session
 ```
 ---
 
-### Docker - Run project & some cleaning ops
+### Docker - Start containers (per stack)
+
+Each stack lives in its own sub-folder. Navigate to the folder you want and run `docker compose up -d`.
+
+| Stack | Folder | Key UIs |
+|---|---|---|
+| NiFi batch pipeline | `nifi/` | NiFi `https://localhost:8443`, MinIO `http://localhost:9031` |
+| Kafka CDC streaming | `kafka/` | Schema Registry `http://localhost:8091`, Connect `http://localhost:8093`, MinIO `http://localhost:9031` |
+| Redpanda streaming + Spark | `redpanda_stream/` | Redpanda Console `http://localhost:8200`, Jupyter `http://localhost:8988`, MinIO `http://localhost:9031` |
+| Spark batch + Jupyter | `spark/` | Spark Master `http://localhost:8980`, Jupyter `http://localhost:8988`, MinIO `http://localhost:9031` |
+| Spark + Nessie + Iceberg | `spark-nessie/` | Spark Master `http://localhost:8980`, Jupyter `http://localhost:8988`, Nessie `http://localhost:19720` |
+| Spark Structured Streaming | `spark-streaming/` | Redpanda Console `http://localhost:8200`, Jupyter `http://localhost:8988` |
+| Iceberg + Nessie + Trino | `iceberg-nessie/` | Trino `http://localhost:18080`, Nessie `http://localhost:19720`, MinIO `http://localhost:9031` |
+
+```bash
+# Example: start the NiFi stack
+cd nifi
+docker compose up -d
+
+# Example: start the Kafka stack (core services only)
+cd kafka
+docker compose up -d
+
+# Example: start the Kafka stack including optional services (setup-automation, python clients, UI)
+cd kafka
+docker compose --profile extra --profile client --profile ui up -d
+
+# Example: start the Redpanda streaming stack
+cd redpanda_stream
+docker compose up -d
+
+# Example: start the Spark batch stack
+cd spark
+docker compose up -d
+
+# Example: start the Spark + Nessie stack
+cd spark-nessie
+docker compose up -d
+
+# Example: start the Spark Streaming stack
+cd spark-streaming
+docker compose up -d
+
+# Example: start the Iceberg + Nessie + Trino stack
+cd iceberg-nessie
+docker compose up -d
+```
+
+### Docker - Common operations
 
 ```bash
 # Be sure to be in the folder with compose.yml file
-# start all
-docker compose up -d
 
 # stop all and clean some volume
 docker compose down -v --remove-orphans

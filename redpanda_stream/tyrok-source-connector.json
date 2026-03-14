@@ -10,7 +10,7 @@
         "database.server.id": "1", 
         "topic.prefix": "bank_sandaga.REDPANDA", 
         "database.include.list": "TYROK",
-        "table.include.list": "TYROK.client",       
+        "table.include.list": "TYROK.product",
         "include.schema.changes": "true",
 
         "topic.creation.enable": true,

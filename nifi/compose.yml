@@ -128,23 +128,8 @@ services:
 
 volumes:
   mysql_data:
-    driver: local # Define the driver and options under the volume name
-    driver_opts:
-      type: none
-      device: /home/patrick/Téléchargements/ressources/mysql
-      o: bind
   minio_data:
-    driver: local # Define the driver and options under the volume name
-    driver_opts:
-      type: none
-      device: /home/patrick/Téléchargements/ressources/minio
-      o: bind
   share_data:
-    driver: local # Define the driver and options under the volume name
-    driver_opts:
-      type: none
-      device: /home/patrick/Téléchargements/ressources/share_folder
-      o: bind
 
 networks:
   bigdata:

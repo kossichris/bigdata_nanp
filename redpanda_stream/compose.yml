@@ -249,13 +249,13 @@ services:
       VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
       VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://redpanda-0:8081
       # Limite la mémoire au niveau de Java (Heap)
-      KAFKA_HEAP_OPTS: -Xms512M -Xmx1G
+      KAFKA_HEAP_OPTS: -Xms512M -Xmx1536M
       # Désactive les logs inutiles pour économiser du CPU
       CONNECT_LOG4J_ROOT_LOGLEVEL: WARN
     deploy:
       resources:
         limits:
-          memory: 1.5G # Limite stricte au niveau Docker
+          memory: 2.5G # Limite stricte au niveau Docker (augmentée pour éviter OOM)
           cpus: '1.0'  # Limite à 1 cœur CPU
     depends_on:
       redpanda-0:
@@ -425,7 +425,7 @@ services:
       MINIO_ACCESS_KEY: admin
       MINIO_SECRET_KEY: password123 
       MINIO_BUCKET: client-redpanda
-      TOPIC_NAME: bank_sandaga.REDPANDA.TYROK.client
+      TOPIC_NAME: bank_sandaga.REDPANDA.TYROK.product
     # Commande pour installer les dépendances et lancer l'app
     command: >
       sh -c "pip install --no-cache-dir -r requirements.txt && 
@@ -487,47 +487,12 @@ services:
   
 volumes:
   mysql_data:
-    driver: local # Define the driver and options under the volume name
-    driver_opts:
-      type: none
-      device: /home/patrick/Téléchargements/ressources/mysql
-      o: bind
   minio_data:
-    driver: local # Define the driver and options under the volume name
-    driver_opts:
-      type: none
-      device: /home/patrick/Téléchargements/ressources/minio
-      o: bind  
   gotify_data:
-    driver: local # Define the driver and options under the volume name
-    driver_opts:
-      type: none
-      device: /home/patrick/Téléchargements/ressources/gotify
-      o: bind
   redpanda-0:
-    driver: local # Define the driver and options under the volume name
-    driver_opts:
-      type: none
-      device: /home/patrick/Téléchargements/ressources/redpanda/redpanda-0
-      o: bind
   redpanda-1:
-    driver: local # Define the driver and options under the volume name
-    driver_opts:
-      type: none
-      device: /home/patrick/Téléchargements/ressources/redpanda/redpanda-1
-      o: bind
   redpanda-2:
-    driver: local # Define the driver and options under the volume name
-    driver_opts:
-      type: none
-      device: /home/patrick/Téléchargements/ressources/redpanda/redpanda-2
-      o: bind
   share_data:
-    driver: local # Define the driver and options under the volume name
-    driver_opts:
-      type: none
-      device: /home/patrick/Téléchargements/ressources/share_folder
-      o: bind
 
 networks:
   bigdata:

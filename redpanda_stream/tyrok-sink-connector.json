@@ -3,7 +3,7 @@
   "config": {
     "connector.class": "io.confluent.connect.s3.S3SinkConnector",
     "tasks.max": "2",
-    "topics": "bank_sandaga.REDPANDA.TYROK.client",
+    "topics": "bank_sandaga.REDPANDA.TYROK.product",
 
     "store.url": "http://minio:9000",
     "aws.access.key.id": "admin",

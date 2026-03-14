@@ -28,13 +28,13 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- AUTO-REFRESH (Toutes les 15 secondes) ---
+# --- AUTO-REFRESH (Toutes les 3 secondes) ---
 # Force le script à se relancer pour détecter les nouveaux fichiers
-count = st_autorefresh(interval=15000, key="datarefresh")
+count = st_autorefresh(interval=3000, key="datarefresh")
 
 # --- PARAMÈTRES MINIO ---
 MINIO_BUCKET = os.getenv("MINIO_BUCKET", "client-redpanda")
-TOPIC_NAME = os.getenv("TOPIC_NAME", "bank_sandaga.REDPANDA.TYROK.client")
+TOPIC_NAME = os.getenv("TOPIC_NAME", "bank_sandaga.REDPANDA.TYROK.product")
 MINIO_CONF = {
     "key": os.getenv("MINIO_ACCESS_KEY", "admin"),
     "secret": os.getenv("MINIO_SECRET_KEY", "password123"),
@@ -43,7 +43,7 @@ MINIO_CONF = {
     }
 }
 
-@st.cache_data(ttl=12)
+@st.cache_data(ttl=2)
 def load_data():
     base_path = f"{MINIO_BUCKET}/topics/{TOPIC_NAME}"
     

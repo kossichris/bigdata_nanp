@@ -109,9 +109,9 @@ col1, col2 = st.columns([1, 2], gap="large")
 # --- Interface d'ajout ---
 with col1:
     st.subheader("➕ Nouveau Client")
-    with st.form("add_client_form"):
+    with st.form("add_product_form"):
         code = st.text_input("Code unique", placeholder="ex: C001")
-        name = st.text_input("Nom du client", placeholder="ex: John Doe")
+        name = st.text_input("Nom du product", placeholder="ex: John Doe")
         actif = st.toggle("Client Actif", value=True)
         
         if st.form_submit_button("Enregistrer"):
@@ -119,7 +119,7 @@ with col1:
                 conn = get_connection()
                 cursor = conn.cursor()
                 cursor.execute(
-                    "INSERT INTO client (code, name, actif) VALUES (%s, %s, %s)",
+                    "INSERT INTO product (code, name, actif) VALUES (%s, %s, %s)",
                     (code, name, actif)
                 )
                 conn.commit()                
@@ -130,10 +130,10 @@ with col1:
 
 # --- Interface de consultation ---
 with col2:
-    st.subheader("📋 Liste des clients")
+    st.subheader("📋 Liste des products")
     try:
         conn = get_connection()
-        query = "SELECT id, code, name, actif FROM client ORDER BY id DESC"
+        query = "SELECT id, code, name, actif FROM product ORDER BY id DESC"
         # Utilisation du cache Streamlit pour la lecture        
         df = pd.read_sql(query, conn)
         st.dataframe(
